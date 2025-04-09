@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:13-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tracer_db
+    ports:
+      - "5432:5432"
+
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "postgres", "-d", "tracer_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5

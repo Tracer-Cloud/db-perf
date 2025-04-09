@@ -1,5 +1,6 @@
 from db_perf.db_versions.v1 import DbClient as DbClientV1
 from db_perf.perf import PerfClient
+import os
 
 NUMBER_OF_RECORDS = [100]
 # NUMBER_OF_RECORDS = [100, 1_000, 10_000, 1_000_000, 2_000_000, 10_000_000]
@@ -7,7 +8,9 @@ NUMBER_OF_RECORDS = [100]
 
 def main():
 
-    database_url = "postgres://postgres:postgres@localhost:5432/tracer_db"
+    database_url = os.getenv(
+        "DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tracer_db"
+    )
 
     client_list = [
         DbClientV1(database_url),
