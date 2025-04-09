@@ -134,3 +134,16 @@ class DbClient(BaseClient):
 
             results[label] = execution_time_ms
         return results
+
+    def run_benchmark(self, number_of_records: int) -> Dict[str, Dict[str, float]]:
+
+        print(f"Running insert benchmark on {self.name()}")
+        payload = self.generate_insert_payload(number_of_records)
+        print("Running migrations ...")
+        self.migrator.run_migrations()
+        self.batch_inserts(payload)
+        print(f"benchmarking Queries for {self.name()}")
+        results = {self.name(): self.benchmark_queries()}
+        print(f"Cleaning up after bench mark for {self.name()}")
+        self.migrator.rollback_migrations()
+        return results

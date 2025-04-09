@@ -1,7 +1,7 @@
 from typing import Dict
 
-import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from db_perf.db_versions.base import BaseClient
 
@@ -18,19 +18,7 @@ class PerfClient:
     def run_insert_and_benchmark_client_queries(self, num_records: int):
 
         for client in self.clients:
-            label = client.name()
-            print(f"Running insert benchmark on {label}")
-
-            payload = client.generate_insert_payload(
-                num_records
-            )  # generates List[Event]
-            print("Running migrations ...")
-            client.migrator.run_migrations()
-            client.batch_inserts(payload)
-            print("benchmarking Queries for ...")
-            self.results[num_records] = {label: client.benchmark_queries()}
-            print("Cleaning up after bench mark...")
-            client.migrator.rollback_migrations()
+            self.results[num_records] = client.run_benchmark(num_records)
 
     def to_dataframe(self):
         # Transform to long format

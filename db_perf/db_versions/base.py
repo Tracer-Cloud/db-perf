@@ -63,3 +63,11 @@ class BaseClient(metaclass=ABCMeta):
         """Returns the average execution time for each query
         :returns: Dict [string, float] => { query_1: avg_time, ... }
         """
+
+    @abstractmethod
+    def run_benchmark(self, number_of_records: int) -> Dict[str, Dict[str, float]]:
+        """
+        Handles client migration, benchmark run and cleanup
+
+        :returns: Dict[str, Dict[str, float]]: dictionary of client_name to benchmark results
+        """
