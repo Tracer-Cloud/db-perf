@@ -15,7 +15,9 @@ class BaseClient(ABC):
     def __init__(self, database_url: str) -> None:
 
         self.database_url = database_url
-        self.schema_basedir = Path(__file__).resolve().parent.parent / "schemas"
+        self.schema_basedir = Path(__file__).resolve().parent.parent.parent / "schemas"
+        print("getting schema_basedir", self.schema_basedir)
+
         self.migrator = self._create_migrator()
         self.conn = self.connect_to_db()
 
@@ -42,6 +44,9 @@ class BaseClient(ABC):
         migrations_folder = self._get_correct_schema_path()
         migrator = DatabaseMigrator(self.database_url, migrations_folder)
         return migrator
+
+    @abstractmethod
+    def name(self) -> str: ...
 
     @abstractmethod
     def _get_correct_schema_path(self) -> Path: ...

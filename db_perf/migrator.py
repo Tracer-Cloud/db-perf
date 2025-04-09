@@ -45,10 +45,43 @@ class DatabaseMigrator:
                 "run",
                 "--database-url",
                 self.database_url,
-                "--migration-dir",
+                "--source",
                 self.migration_folder,
             ],
             check=True,
         )
 
         print("Migration completed successfully!")
+
+    def rollback_migrations(self):
+        # Check if sqlx is installed
+        self._check_sqlx_installed()
+
+        print(f"Using database URL: {self.database_url}")
+        print("Recreating database...")
+
+        # Resert db
+        subprocess.run(
+            [
+                "sqlx",
+                "database",
+                "drop",
+                "--database-url",
+                self.database_url,
+                "--force",
+                "-y",
+            ],
+            check=True,
+        )
+
+        subprocess.run(
+            [
+                "sqlx",
+                "database",
+                "create",
+                "--database-url",
+                self.database_url,
+            ],
+            check=True,
+        )
+        print("Migration rollback successfully!")
