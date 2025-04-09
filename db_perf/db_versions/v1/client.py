@@ -5,10 +5,21 @@ from typing import Dict, List
 from psycopg2.extras import Json
 
 from db_perf.db_versions.base import BaseClient
+from db_perf.db_versions.v1.queries import (
+    AVG_PIPELINE_DURATION_6MONTHS,
+    COST_ATTRIBUTION_QUERY,
+    STATUS_PIPELINE_RUNS_THIS_MONTH_QUERY,
+)
 from db_perf.models.events import Event
+from db_perf.models.query import Query
 
 QUERIES = [
-    "SELECT * FROM public.batch_jobs_logs ORDER BY id ASC LIMIT 100",
+    Query(name="cost_attribution_query", query=COST_ATTRIBUTION_QUERY),
+    Query(name="avg_pipeline_duration_6months", query=AVG_PIPELINE_DURATION_6MONTHS),
+    Query(
+        name="status_pipeline_runs_this_month_query",
+        query=STATUS_PIPELINE_RUNS_THIS_MONTH_QUERY,
+    ),
 ]
 
 
@@ -113,11 +124,11 @@ class DbClient(BaseClient):
 
     def benchmark_queries(self) -> Dict[str, float]:
         results = {}
-        for idx, query in enumerate(QUERIES):
-            label = f"query_{idx}"
+        for query in QUERIES:
+            label = f"query_{query.name}"
             print(f"Running query benchmark on {label}")
 
-            explain_query = f"EXPLAIN (ANALYZE, FORMAT JSON) {query}"
+            explain_query = f"EXPLAIN (ANALYZE, FORMAT JSON) {query.query}"
 
             cur = self.conn.cursor()
             cur.execute(explain_query)
@@ -129,10 +140,10 @@ class DbClient(BaseClient):
 
             result = result[0]  # EXPLAIN result as JSON
             cur.close()
-            self.conn.close()
             execution_time_ms = result[0]["Execution Time"]
 
             results[label] = execution_time_ms
+        self.conn.close()
         return results
 
     def run_benchmark(self, number_of_records: int) -> Dict[str, Dict[str, float]]:
