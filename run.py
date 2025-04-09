@@ -27,14 +27,6 @@ def main():
     client_list = [
         DbClientV1(database_url),
     ]
-    perf = PerfClient(client_list)
+    perf = PerfClient(clients=client_list, number_of_records=NUMBER_OF_RECORDS)
 
-    total_entires = 0
-
-    for num_of_records in NUMBER_OF_RECORDS:
-        total_entires += num_of_records
-        print(f"inserting {total_entires}...")
-        print(f"benchmark database at {total_entires}...")
-        perf.run_insert_and_benchmark_client_queries(total_entires)
-
-    print(perf.results)
+    perf.run()
