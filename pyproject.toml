@@ -15,8 +15,11 @@ dependencies = [
     "pydantic (>=2.11.3,<3.0.0)"
 ]
 
-[tool.poetry]
-packages = [{include = "db_perf", from = "src"}]
+[tool.poetry.scripts]
+perf = "run:main"
+
+
+
 
 
 [tool.poetry.group.dev.dependencies]
