@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from typing import Dict, List
 
@@ -10,7 +10,7 @@ from db_perf.migrator import DatabaseMigrator
 from db_perf.models.events import Event
 
 
-class BaseClient(ABC):
+class BaseClient(metaclass=ABCMeta):
 
     def __init__(self, database_url: str) -> None:
 
@@ -63,4 +63,3 @@ class BaseClient(ABC):
         """Returns the average execution time for each query
         :returns: Dict [string, float] => { query_1: avg_time, ... }
         """
-        ...

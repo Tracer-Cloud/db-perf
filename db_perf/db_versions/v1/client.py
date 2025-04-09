@@ -7,7 +7,9 @@ from psycopg2.extras import Json
 from db_perf.db_versions.base import BaseClient
 from db_perf.models.events import Event
 
-QUERIES = []
+QUERIES = [
+    "SELECT * FROM public.batch_jobs_logs ORDER BY id ASC LIMIT 100",
+]
 
 
 class DbClient(BaseClient):
@@ -17,13 +19,22 @@ class DbClient(BaseClient):
     def _get_correct_schema_path(self) -> Path:
         return self.schema_basedir / "v1/migrations"
 
-    def insert_event(self, conn, event: Event):
+    def insert_event(self, event: Event):
         cursor = self.conn.cursor()
-        data_json = Json(event.__dict__, dumps=json.dumps)
+        data_json = Json(event.model_dump(mode="json"), dumps=json.dumps)
 
-        # Transpose
-        attributes = event.attributes or {}
-        system_metric = attributes.get("system_metric", {})
+        attributes = event.attributes
+        system_metric = (
+            attributes.system_metric
+            if attributes and attributes.system_metric
+            else None
+        )
+        system_props = (
+            attributes.system_properties
+            if attributes and attributes.system_properties
+            else None
+        )
+        process_dataset = getattr(attributes, "process_dataset_stats", None)
 
         cursor.execute(
             """
@@ -31,67 +42,69 @@ class DbClient(BaseClient):
                 data, job_id, run_name, run_id, pipeline_name, nextflow_session_uuid, job_ids,
                 tags, event_timestamp, ec2_cost_per_hour, cpu_usage, mem_used, processed_dataset
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
+            """,
             (
                 data_json,
                 "default",  # fallback job_id
                 event.run_name,
                 event.run_id,
                 event.pipeline_name,
-                attributes.get("session_uuid"),
-                attributes.get("jobs_ids", []),
-                Json(event.tags.__dict__) if event.tags else None,
+                getattr(attributes, "session_uuid", None),
+                getattr(attributes, "jobs_ids", []),
+                Json(event.tags.model_dump(mode="json")) if event.tags else None,
                 event.timestamp,
-                attributes.get("system_properties", {}).get("ec2_cost_per_hour"),
-                system_metric.get("system_cpu_utilization"),
-                system_metric.get("system_memory_used"),
-                attributes.get("process_dataset_stats", {}).get("total"),
+                getattr(system_props, "ec2_cost_per_hour", None),
+                getattr(system_metric, "system_cpu_utilization", None),
+                getattr(system_metric, "system_memory_used", None),
+                getattr(process_dataset, "total", None),
             ),
         )
-        conn.commit()
+        self.conn.commit()
         cursor.close()
 
     def batch_inserts(self, events: List[Event]):
+        print("calling batch inserts....")
         cursor = self.conn.cursor()
-
-        @staticmethod
-        def get_value_or_zero(d, *keys) -> int:
-
-            for key in keys:
-                if d is None:
-                    return 0
-                d = d.get(key, 0)
-            return d
 
         records = []
         for event in events:
-            attributes = event.attributes or {}
-            system_metric = attributes.get("system_metric", {})
+            attributes = event.attributes
+            system_metric = (
+                attributes.system_metric
+                if attributes and attributes.system_metric
+                else None
+            )
+            system_props = (
+                attributes.system_properties
+                if attributes and attributes.system_properties
+                else None
+            )
+            process_dataset = getattr(attributes, "process_dataset_stats", None)
 
             record = (
-                Json(event.__dict__, dumps=json.dumps),
-                "default",  # fallback job_id
+                Json(event.model_dump(mode="json"), dumps=json.dumps),
+                "default",
                 event.run_name,
                 event.run_id,
                 event.pipeline_name,
-                attributes.get("session_uuid"),
-                attributes.get("jobs_ids", []),
-                Json(event.tags.__dict__) if event.tags else None,
+                getattr(attributes, "session_uuid", None),
+                getattr(attributes, "jobs_ids", []),
+                Json(event.tags.model_dump(mode="json")) if event.tags else None,
                 event.timestamp,
-                get_value_or_zero(attributes, "system_properties", "ec2_cost_per_hour"),
-                system_metric.get("system_cpu_utilization"),
-                system_metric.get("system_memory_used"),
-                get_value_or_zero(attributes, "process_dataset_stats", "total"),
+                getattr(system_props, "ec2_cost_per_hour", None),
+                getattr(system_metric, "system_cpu_utilization", None),
+                getattr(system_metric, "system_memory_used", None),
+                getattr(process_dataset, "total", None),
             )
             records.append(record)
 
         cursor.executemany(
             """
-            INSERT INTO batch_jobs_logs (
-                data, job_id, run_name, run_id, pipeline_name, nextflow_session_uuid, job_ids,
-                tags, event_timestamp, ec2_cost_per_hour, cpu_usage, mem_used, processed_dataset
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
+                INSERT INTO batch_jobs_logs (
+                    data, job_id, run_name, run_id, pipeline_name, nextflow_session_uuid, job_ids,
+                    tags, event_timestamp, ec2_cost_per_hour, cpu_usage, mem_used, processed_dataset
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
             records,
         )
 
