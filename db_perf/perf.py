@@ -1,47 +1,50 @@
-from typing import Dict
-
-import matplotlib.pyplot as plt
+from typing import List, Dict
 import pandas as pd
-
+import matplotlib.pyplot as plt
 from db_perf.db_versions.base import BaseClient
 
 
 class PerfClient:
-
-    def __init__(self, clients: list[BaseClient], number_of_records: list[int]):
+    def __init__(self, clients: List[BaseClient], number_of_records: List[int]):
         self.clients = clients
         self.number_of_records = number_of_records
-        self.results: Dict[int, Dict[str, Dict[str, float]]] = (
-            {}
-        )  # number of records:  dict of number of records : benchmark data
+        self.results: Dict[str, List[Dict[str, float]]] = {}
+        # client_name → list of benchmark results over time
 
     def run_insert_and_benchmark_client_queries(self, num_records: int):
 
         for client in self.clients:
-            self.results[num_records] = client.run_benchmark(num_records)
+            benchmark_result = client.run_benchmark(num_records)
+            for client_name, queries in benchmark_result.items():
+                if client_name not in self.results:
+                    self.results[client_name] = []
+                self.results[client_name].append(
+                    {"records": num_records, **queries}  # query_name: time_ms
+                )
 
     def to_dataframe(self):
         # Transform to long format
-        records = []
-        for num_records, clients in self.results.items():
-            for client_name, queries in clients.items():
-                for query_name, time in queries.items():
-                    records.append(
+        rows = []
+        for client_name, benchmarks in self.results.items():
+            for entry in benchmarks:
+                num_records = entry["records"]
+                for query_name, time_ms in entry.items():
+                    if query_name == "records":
+                        continue
+                    rows.append(
                         {
                             "records": num_records,
                             "client": client_name,
                             "query": query_name,
-                            "time_ms": time,
+                            "time_ms": time_ms,
                         }
                     )
-
-        return pd.DataFrame(records)
+        return pd.DataFrame(rows)
 
     def plot(self):
         df = self.to_dataframe()
 
-        # Plot
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(12, 8))
         for (client, query), group in df.groupby(["client", "query"]):
             group_sorted = group.sort_values("records")
             plt.plot(
@@ -52,21 +55,24 @@ class PerfClient:
             )
 
         plt.title("Query Performance vs. Number of Records")
+
+        plt.title("Query Performance vs. Number of Records")
         plt.xlabel("Number of Records")
-        plt.ylabel("Time (ms)")
-        plt.grid(True)
+        plt.ylabel("Time (ms, log scale)")
+        plt.yscale("log")
+        plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+
         plt.legend()
         plt.tight_layout()
         plt.savefig("db_query_performance_plot.png")
         plt.close()
 
     def run(self):
-        total_entires = 0
 
-        for num_of_records in self.number_of_records:
-            total_entires += num_of_records
-            print(f"inserting {total_entires}...")
-            print(f"benchmark database at {total_entires}...")
-            self.run_insert_and_benchmark_client_queries(total_entires)
+        total_records = 0
+        for count in self.number_of_records:
+            total_records += count
+            print(f"Inserting and Benchmarking {total_records} records...")
+            self.run_insert_and_benchmark_client_queries(total_records)
 
         self.plot()

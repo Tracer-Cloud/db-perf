@@ -1,28 +1,24 @@
 COST_ATTRIBUTION_QUERY = """
 
-WITH job_metrics AS (
-  SELECT 
-    run_id,
-    pipeline_name,
-    tags,
-    event_timestamp as ts,
-    ec2_cost_per_hour as cost_per_hour,
-    cpu_usage,
-    mem_used,
-    COALESCE(processed_dataset, 0) AS processed_dataset
-  FROM batch_jobs_logs b
-  WHERE pipeline_name IS NOT NULL and pipeline_name != ''
-),
-
-last_run_start AS (
-  SELECT DISTINCT ON (pipeline_name, tags)
+WITH run_metrics AS (
+  SELECT
     pipeline_name,
     tags,
     run_id,
-    MIN(ts) AS last_run_start_date
-  FROM job_metrics
+    MIN(event_timestamp) AS start_time,
+    MAX(event_timestamp) AS end_time,
+    MAX(ec2_cost_per_hour) AS cost_per_hour,
+    MAX(cpu_usage) AS cpu_usage,
+    MAX(mem_used) AS mem_used,
+    ROW_NUMBER() OVER (
+      PARTITION BY pipeline_name, tags
+      ORDER BY MAX(event_timestamp) DESC
+    ) AS last_run_rank
+  FROM batch_jobs_logs
+  WHERE
+    pipeline_name IS NOT NULL
+    AND pipeline_name != ''
   GROUP BY pipeline_name, tags, run_id
-  ORDER BY pipeline_name, tags, MAX(ts) DESC
 ),
 
 pipeline_summary AS (
@@ -31,69 +27,40 @@ pipeline_summary AS (
     tags,
     COUNT(*) AS run_count,
     MAX(end_time) AS last_activity_timestamp,
-    AVG(run_duration_hours * cost_per_hour) AS avg_cost_per_run,
-    AVG(run_duration_hours * 60) AS avg_run_time_minutes,
+    AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 3600 * cost_per_hour) AS avg_cost_per_run,
+    AVG(EXTRACT(EPOCH FROM (end_time - start_time)) / 60) AS avg_run_time_minutes,
     AVG(cpu_usage) FILTER (WHERE cpu_usage IS NOT NULL) AS avg_cpu_usage,
-    AVG(mem_used) FILTER (WHERE mem_used IS NOT NULL) / 1073741824 AS avg_ram_used_gb
-  FROM (
-    SELECT
-      pipeline_name,
-      tags,
-      run_id,
-      (EXTRACT(EPOCH FROM (MAX(ts) - MIN(ts))) / 3600) AS run_duration_hours,
-      MAX(cost_per_hour) AS cost_per_hour,
-      MAX(ts) AS end_time,
-      MAX(cpu_usage) AS cpu_usage,
-      MAX(mem_used) AS mem_used
-    FROM job_metrics
-    GROUP BY pipeline_name, tags, run_id
-  ) job_aggregations
-  GROUP BY pipeline_name, tags
-),
-
-tag_aggregation AS (
-  SELECT 
-    pipeline_name, 
-    tags, 
-    STRING_AGG(value, ', ') AS tags_str
-  FROM (
-    SELECT 
-      ps.pipeline_name, 
-      ps.tags, 
-      jt.value
-    FROM pipeline_summary ps
-    CROSS JOIN LATERAL jsonb_each_text(ps.tags) AS jt(key, value)
-    WHERE jsonb_typeof(ps.tags) = 'object'
-  ) tag_expansion
+    AVG(mem_used) FILTER (WHERE mem_used IS NOT NULL) / 1073741824 AS avg_ram_used_gb,
+    MAX(start_time) FILTER (WHERE last_run_rank = 1) AS last_run_start_date
+  FROM run_metrics
   GROUP BY pipeline_name, tags
 )
 
 SELECT
-  COALESCE(NULLIF(pipeline_summary.pipeline_name, ''), 'pipeline_name_not_available') AS "Pipeline Name",
-  CASE 
-    WHEN pipeline_summary.last_activity_timestamp < NOW() - INTERVAL '20 seconds' THEN 'Completed'
+  COALESCE(NULLIF(ps.pipeline_name, ''), 'pipeline_name_not_available') AS "Pipeline Name",
+  CASE
+    WHEN ps.last_activity_timestamp < NOW() - INTERVAL '20 seconds' THEN 'Completed'
     ELSE 'Running'
   END AS "Status",
-  CASE 
-    WHEN pipeline_summary.pipeline_name ILIKE '%atac%' THEN 'ATAC-seq'
-    WHEN pipeline_summary.pipeline_name ILIKE '%chip%' THEN 'ChIP-seq'
+  CASE
+    WHEN ps.pipeline_name ILIKE '%atac%' THEN 'ATAC-seq'
+    WHEN ps.pipeline_name ILIKE '%chip%' THEN 'ChIP-seq'
     ELSE 'RNA-seq'
   END AS "Analysis type",
-  COALESCE(tag_aggregation.tags_str, '') AS "Tags",
-  pipeline_summary.run_count AS "Number of Runs",
-  last_run_start.last_run_start_date AS "Last Run Date",
-  pipeline_summary.avg_run_time_minutes AS "AVG Runtime (Minutes)",
-  pipeline_summary.avg_ram_used_gb AS "Avg Max RAM",
-  pipeline_summary.avg_cpu_usage AS "Avg Max CPU %",
-  pipeline_summary.avg_cost_per_run AS "AVG Costs"
-FROM pipeline_summary
-LEFT JOIN tag_aggregation 
-  ON pipeline_summary.pipeline_name = tag_aggregation.pipeline_name 
-  AND pipeline_summary.tags = tag_aggregation.tags
-LEFT JOIN last_run_start
-  ON pipeline_summary.pipeline_name = last_run_start.pipeline_name
-  AND pipeline_summary.tags = last_run_start.tags
-ORDER BY pipeline_summary.last_activity_timestamp DESC, pipeline_summary.run_count;
+  COALESCE(
+    (SELECT STRING_AGG(value, ', ')
+     FROM jsonb_each_text(ps.tags)
+     WHERE jsonb_typeof(ps.tags) = 'object'),
+    ''
+  ) AS "Tags",
+  ps.run_count AS "# of Runs",
+  TO_CHAR(ps.last_run_start_date, 'DD Mon YYYY HH24:MI') AS "Last Run Date",
+  ps.avg_run_time_minutes AS "AVG Runtime",
+  ps.avg_ram_used_gb AS "Avg Max RAM",
+  ps.avg_cpu_usage AS "Avg Max CPU %",
+  ps.avg_cost_per_run AS "AVG Costs"
+FROM pipeline_summary ps
+ORDER BY ps.last_activity_timestamp DESC, ps.run_count;
 """
 
 

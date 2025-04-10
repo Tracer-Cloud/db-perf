@@ -19,7 +19,15 @@ class BaseClient(metaclass=ABCMeta):
         print("getting schema_basedir", self.schema_basedir)
 
         self.migrator = self._create_migrator()
-        self.conn = self.connect_to_db()
+
+        self._pool = None
+
+    @property
+    def conn(self):
+
+        if self._pool is None:
+            self._pool = self.connect_to_db()
+        return self._pool
 
     def connect_to_db(self) -> connection:
         try:
@@ -64,10 +72,30 @@ class BaseClient(metaclass=ABCMeta):
         :returns: Dict [string, float] => { query_1: avg_time, ... }
         """
 
-    @abstractmethod
+    def cleanup(self):
+        """Explicit cleanup"""
+        if self._pool:
+            self._pool.close()
+            self._pool = None
+
     def run_benchmark(self, number_of_records: int) -> Dict[str, Dict[str, float]]:
         """
         Handles client migration, benchmark run and cleanup
 
         :returns: Dict[str, Dict[str, float]]: dictionary of client_name to benchmark results
         """
+
+        try:
+            print(f"Running insert benchmark on {self.name()}")
+            payload = self.generate_insert_payload(number_of_records)
+            print("Running migrations ...")
+            self.migrator.run_migrations()
+            self.batch_inserts(payload)
+            print(f"benchmarking Queries for {self.name()}")
+            results = {self.name(): self.benchmark_queries()}
+
+            return results
+        finally:
+            print(f"Cleaning up after bench mark for {self.name()}")
+            self.cleanup()
+            self.migrator.rollback_migrations()
