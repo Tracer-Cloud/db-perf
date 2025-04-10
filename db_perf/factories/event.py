@@ -68,8 +68,12 @@ class DiskStatisticFactory(Factory):
     class Meta:
         model = DiskStatistic
 
-    read_bytes = Faker("random_int", min=0, max=1000000)
-    write_bytes = Faker("random_int", min=0, max=1000000)
+    disk_total_space = Faker("random_int", min=100_000, max=1_000_000)
+    disk_used_space = Faker("random_int", min=50_000, max=900_000)
+    disk_available_space = Faker("random_int", min=10_000, max=500_000)
+    disk_utilization = Faker(
+        "pyfloat", left_digits=2, right_digits=2, min_value=0.0, max_value=1.0
+    )
 
 
 class SystemMetricFactory(Factory):
@@ -110,8 +114,17 @@ class PipelineTagsFactory(Factory):
     class Meta:
         model = PipelineTags
 
-    env = Faker("random_element", elements=["dev", "staging", "prod"])
-    owner = Faker("first_name")
+    environment = Faker("random_element", elements=["dev", "staging", "prod"])
+    pipeline_type = Faker("random_element", elements=["ETL", "DataSync", "Analytics"])
+    user_operator = Faker("first_name")
+    department = "Research"
+    team = "Oncology"
+    others = Faker(
+        "random_elements",
+        elements=["AI", "ML", "NLP", "Imaging", "Genomics"],
+        unique=False,
+        length=2,
+    )
 
 
 class AwsInstanceMetaDataFactory(Factory):

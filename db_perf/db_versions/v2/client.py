@@ -30,7 +30,7 @@ QUERIES = [
 class DbClientV2(BaseClient):
 
     def name(self) -> str:
-        return "db_client_v2"
+        return "schema_flat_tags_and_hot_entries"
 
     def _get_correct_schema_path(self) -> Path:
         return self.schema_basedir / "v2/migrations"

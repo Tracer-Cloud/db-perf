@@ -25,7 +25,7 @@ QUERIES = [
 
 class DbClient(BaseClient):
     def name(self) -> str:
-        return "db_client_v1"
+        return "current_schema"
 
     def _get_correct_schema_path(self) -> Path:
         return self.schema_basedir / "v1/migrations"

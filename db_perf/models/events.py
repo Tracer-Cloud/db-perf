@@ -48,8 +48,10 @@ class DataSetsProcessed(BaseModel):
 
 
 class DiskStatistic(BaseModel):
-    read_bytes: int
-    write_bytes: int
+    disk_total_space: int
+    disk_used_space: int
+    disk_available_space: int
+    disk_utilization: float
 
 
 class SystemMetric(BaseModel):
@@ -113,8 +115,12 @@ class EventAttributes(BaseModel):
 
 
 class PipelineTags(BaseModel):
-    env: str
-    owner: str
+    environment: str
+    pipeline_type: str
+    user_operator: str
+    department: str = "Research"
+    team: str = "Oncology"
+    others: List[str] = []
 
 
 # --- Main Event Model ---

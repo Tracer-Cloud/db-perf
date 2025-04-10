@@ -3,6 +3,7 @@ import os
 from db_perf.db_versions.v1 import DbClient as DbClientV1
 from db_perf.db_versions.v2 import DbClientV2
 from db_perf.db_versions.v3 import DbClientV3
+from db_perf.db_versions.v4 import DBClientV4
 
 from db_perf.perf import PerfClient
 
@@ -20,6 +21,7 @@ def main():
         DbClientV1(database_url=database_url),
         DbClientV2(database_url=database_url),
         DbClientV3(database_url=database_url),
+        DBClientV4(database_url=database_url),
     ]
     perf = PerfClient(clients=client_list, number_of_records=NUMBER_OF_RECORDS)
 

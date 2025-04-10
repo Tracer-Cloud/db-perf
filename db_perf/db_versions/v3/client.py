@@ -25,7 +25,7 @@ QUERIES = [
 
 class DbClientV3(BaseClient):
     def name(self) -> str:
-        return "db_client_v3"
+        return "default_json_with_other_indexes"
 
     def _get_correct_schema_path(self) -> Path:
         return self.schema_basedir / "v3/migrations"
